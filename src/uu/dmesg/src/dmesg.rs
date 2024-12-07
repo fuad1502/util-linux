@@ -6,6 +6,7 @@
 use clap::{crate_version, Arg, ArgAction, Command};
 use regex::Regex;
 use std::{
+    collections::HashSet,
     fs::File,
     io::{BufRead, BufReader},
 };
@@ -46,6 +47,58 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             }
         };
     }
+    if let Some(list_args) = matches.get_many::<String>(options::FACILITY) {
+        for list in list_args {
+            for arg in list.split(',') {
+                let facility = match arg {
+                    "kern" => Facility::Kern,
+                    "user" => Facility::User,
+                    "mail" => Facility::Mail,
+                    "daemon" => Facility::Daemon,
+                    "auth" => Facility::Auth,
+                    "syslog" => Facility::Syslog,
+                    "lpr" => Facility::Lpr,
+                    "news" => Facility::News,
+                    "uucp" => Facility::Uucp,
+                    "cron" => Facility::Cron,
+                    "authpriv" => Facility::Authpriv,
+                    "ftp" => Facility::Ftp,
+                    "res0" => Facility::Res0,
+                    "res1" => Facility::Res1,
+                    "res2" => Facility::Res2,
+                    "res3" => Facility::Res3,
+                    "local0" => Facility::Local0,
+                    "local1" => Facility::Local1,
+                    "local2" => Facility::Local2,
+                    "local3" => Facility::Local3,
+                    "local4" => Facility::Local4,
+                    "local5" => Facility::Local5,
+                    "local6" => Facility::Local6,
+                    "local7" => Facility::Local7,
+                    _ => return Err(USimpleError::new(1, format!("unknown facility '{arg}'"))),
+                };
+                dmesg.facility_filters.insert(facility);
+            }
+        }
+    }
+    if let Some(list_args) = matches.get_many::<String>(options::LEVEL) {
+        for list in list_args {
+            for arg in list.split(',') {
+                let level = match arg {
+                    "emerg" => Level::Emerg,
+                    "alert" => Level::Alert,
+                    "crit" => Level::Crit,
+                    "err" => Level::Err,
+                    "warn" => Level::Warn,
+                    "notice" => Level::Notice,
+                    "info" => Level::Info,
+                    "debug" => Level::Debug,
+                    _ => return Err(USimpleError::new(1, format!("unknown facility '{arg}'"))),
+                };
+                dmesg.level_filters.insert(level);
+            }
+        }
+    }
     dmesg.print()?;
     Ok(())
 }
@@ -78,18 +131,36 @@ pub fn uu_app() -> Command {
                 )
                 .action(ArgAction::Set),
         )
+        .arg(
+            Arg::new(options::FACILITY)
+                .short('f')
+                .long("facility")
+                .help("restrict output to defined facilities")
+                .action(ArgAction::Append),
+        )
+        .arg(
+            Arg::new(options::LEVEL)
+                .short('l')
+                .long("level")
+                .help("restrict output to defined levels")
+                .action(ArgAction::Append),
+        )
 }
 
 mod options {
     pub const KMSG_FILE: &str = "kmsg-file";
     pub const JSON: &str = "json";
     pub const TIME_FORMAT: &str = "time-format";
+    pub const FACILITY: &str = "facility";
+    pub const LEVEL: &str = "level";
 }
 
 struct Dmesg<'a> {
     kmsg_file: &'a str,
     output_format: OutputFormat,
     time_format: TimeFormat,
+    facility_filters: HashSet<Facility>,
+    level_filters: HashSet<Level>,
 }
 
 impl Dmesg<'_> {
@@ -98,6 +169,8 @@ impl Dmesg<'_> {
             kmsg_file: "/dev/kmsg",
             output_format: OutputFormat::Normal,
             time_format: TimeFormat::Raw,
+            facility_filters: HashSet::new(),
+            level_filters: HashSet::new(),
         }
     }
 
@@ -162,6 +235,46 @@ enum TimeFormat {
     Notime,
     Iso,
     Raw,
+}
+
+#[derive(Eq, Hash, PartialEq)]
+enum Facility {
+    Kern,
+    User,
+    Mail,
+    Daemon,
+    Auth,
+    Syslog,
+    Lpr,
+    News,
+    Uucp,
+    Cron,
+    Authpriv,
+    Ftp,
+    Res0,
+    Res1,
+    Res2,
+    Res3,
+    Local0,
+    Local1,
+    Local2,
+    Local3,
+    Local4,
+    Local5,
+    Local6,
+    Local7,
+}
+
+#[derive(Eq, Hash, PartialEq)]
+enum Level {
+    Emerg,
+    Alert,
+    Crit,
+    Err,
+    Warn,
+    Notice,
+    Info,
+    Debug,
 }
 
 struct RecordIterator {
