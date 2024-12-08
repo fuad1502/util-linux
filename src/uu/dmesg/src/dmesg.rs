@@ -182,7 +182,7 @@ impl Dmesg<'_> {
     }
 
     fn print_json(&self) -> UResult<()> {
-        let records = self.try_iter()?.filter_map(|record| record.ok()).collect();
+        let records = self.try_filtered_iter()?.filter_map(|record| record.ok()).collect();
         println!("{}", json::serialize_records(&records));
         Ok(())
     }
@@ -190,7 +190,7 @@ impl Dmesg<'_> {
     fn print_normal(&self) -> UResult<()> {
         let mut reltime_formatter = time_formatter::ReltimeFormatter::new();
         let mut delta_formatter = time_formatter::DeltaFormatter::new();
-        for record in self.try_iter()? {
+        for record in self.try_filtered_iter()? {
             let record = record?;
             match self.time_format {
                 TimeFormat::Delta => {
@@ -213,6 +213,10 @@ impl Dmesg<'_> {
             println!("{}", record.message);
         }
         Ok(())
+    }
+
+    fn try_filtered_iter(&self) -> UResult<impl Iterator<Item = UResult<Record>>> {
+        Ok(self.try_iter()?.filter_levels(&self.level_filters))
     }
 
     fn try_iter(&self) -> UResult<RecordIterator> {
@@ -277,6 +281,12 @@ enum Level {
     Debug,
 }
 
+impl From<u32> for Level {
+    fn from(value: u32) -> Self {
+        todo!()
+    }
+}
+
 struct RecordIterator {
     file_reader: BufReader<File>,
 }
@@ -297,6 +307,16 @@ impl Iterator for RecordIterator {
 }
 
 impl RecordIterator {
+    fn filter_levels(self, _levels: &HashSet<Level>) -> impl Iterator<Item = UResult<Record>> {
+        let filter = |record: &UResult<Record>| {
+            match record {
+                Ok(record) => true,
+                Err(_) => true,
+            }
+        };
+        self.filter(filter)
+    }
+
     fn read_record_line(&mut self) -> UResult<Option<String>> {
         let mut buf = vec![];
         let num_bytes = self.file_reader.read_until(0, &mut buf)?;
